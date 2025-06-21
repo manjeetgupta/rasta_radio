@@ -26,8 +26,7 @@
 //#ifdef BAREMETAL
 //	extern uint8_t time_Data[28];
 //#endif
-static struct rasta_connection new_con;
-static struct rasta_error_counters error_counters;
+
 uint64_t cur_timestamp()
 {
 	long ms;
@@ -1795,6 +1794,8 @@ void sr_init_handle(struct rasta_handle* handle, const char* config_file_path,st
 
 void sr_connect(struct rasta_handle* h, unsigned long id, struct RastaIPData* channels,struct app_context *ctx)
 {
+    struct rasta_connection new_con;
+    struct rasta_error_counters error_counters;
     for (unsigned int i = 0; i < h->connections.size; i++)
     {
         if (h->connections.data[i].remote_id == id) return; //It means that request has already been sent to this ID.
@@ -2024,13 +2025,13 @@ void sr_cleanup(struct rasta_handle *h) {
 
     for (unsigned int i = 0; i < h->connections.size; i++) {
         struct rasta_connection connection = h->connections.data[i];
-        // free memory allocated for diagnostic intervals
-        rfree(connection.diagnostic_intervals);
+        // No need to free static memory
+        // rfree(connection.diagnostic_intervals);
 
-        //free FIFOs
-        fifo_destroy(connection.fifo_app_msg);
-        fifo_destroy(connection.fifo_send);
-        fifo_destroy(connection.fifo_retr);
+        //free FIFOs - use cleanup for static FIFOs
+        fifo_cleanup(connection.fifo_app_msg);
+        fifo_cleanup(connection.fifo_send);
+        fifo_cleanup(connection.fifo_retr);
     }
 
     // set notification pointers to NULL
@@ -2092,7 +2093,7 @@ void init_io_events(timed_event t_events[2], struct rasta_handle* h) {
 void sr_begin(struct rasta_handle* h, fd_event* external_fd_events, int len,timed_event * extern_timed_events,int len_timed_event,timed_event * e2)
 {
     logger_log(&h->logger, LOG_LEVEL_DEBUG, "RaSTA HEARTBEAT", "Thread started");
-    timed_event io_events[2];
+    static timed_event io_events[2];
     init_io_events(io_events, h);
     add_timed_event(&h->events, io_events);
     add_timed_event(&h->events, io_events + 1);

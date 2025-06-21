@@ -31,7 +31,7 @@ volatile unsigned int network_sending = 0;
 //struct app_context {
 //    struct rasta_handle r_dle;
 //};
-static struct app_context app;
+static struct app_context app = {0};
 //static uint64_t current_time_ns_clock = 0;
 static timed_event connect_req;
     static struct connect_event_data data;
@@ -328,12 +328,32 @@ int appMain(void *args)
         {
 //        //void process_timed_events(struct rasta_handle* e)
             {
+                // Safety check: ensure RASTA is initialized
+                if (app.r_dle.receive_handle == NULL || app.r_dle.send_handle == NULL) {
+                    // RASTA not yet initialized, skip event processing
+                    continue;
+                }
+                
                 EventList* list = &app.r_dle.events;
+                
+                // Safety check: ensure the event list is properly initialized
+                if (list == NULL) {
+                    print_log("ERROR: Event list is NULL\n");
+                    continue;
+                }
+                
                 EventNode* node = list->head;
                 current_time_ns_clock = ClockP_getTimeUsec()/1000;
 
                 while (node != NULL)
                 {
+                    // Safety check: validate node structure
+                    if (node->meta_information.callback == NULL) {
+                        print_log("ERROR: Invalid event node with NULL callback\n");
+                        node = node->next;
+                        continue;
+                    }
+                    
                     if (node->type == TIMED_EVENT && node->meta_information.enabled)
                     {
                       //  if (current_time_ns >=  node->event_info.timed_event.next_run_time_ns)

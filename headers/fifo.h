@@ -57,6 +57,14 @@ fifo_t * fifo_init(unsigned int max_size);
 void fifo_destroy(fifo_t * fifo);
 
 /**
+ * Cleans up the given FIFO contents without freeing the structure itself.
+ * This is for static FIFOs that don't need to be freed.
+ * Note: the data of the elements is NOT freed
+ * @param fifo the FIFO to cleanup
+ */
+void fifo_cleanup(fifo_t * fifo);
+
+/**
  * Retrieves the first (oldest) element from the FIFO and removes it from the FIFO.
  * @param fifo the FIFO to use
  * @return the data of the first element or NULL if the FIFO is empty

@@ -108,6 +108,15 @@ void fifo_destroy(fifo_t * fifo){
     rfree(fifo);
 }
 
+void fifo_cleanup(fifo_t * fifo){
+    // Clear FIFO contents without freeing the structure itself
+    // This is for static FIFOs that don't need to be freed
+    while (fifo->size != 0) {
+        fifo_pop(fifo);
+    }
+    // Don't call rfree(fifo) since it's static memory
+}
+
 void** fifo_print(fifo_t * fifo,unsigned int *out_size)
 {
 	if(fifo->size == 0)
