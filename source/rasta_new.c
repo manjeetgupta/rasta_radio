@@ -622,10 +622,10 @@ void sr_diagnostic_interval_init(struct rasta_connection * connection, struct Ra
     }
 }
 
-void sr_init_connection(struct rasta_handle *h,struct rasta_connection* connection, unsigned long id, struct RastaConfigInfoGeneral info, struct RastaConfigInfoSending cfg,rasta_role role)
+void sr_init_connection(struct rasta_connection* new_con, unsigned long id, struct RastaConfigInfoGeneral info, struct RastaConfigInfoSending cfg,rasta_role role)
 {
-    sr_reset_connection(connection,id,info);
-    connection->role = role;
+    sr_reset_connection(new_con,id,info);
+    new_con->role = role;
 
     // initalize diagnostic interval and store it in connection
     //sr_diagnostic_interval_init(connection, cfg);
@@ -638,6 +638,18 @@ void sr_init_connection(struct rasta_handle *h,struct rasta_connection* connecti
 //
 //    // create send queue
 //    connection->fifo_send = fifo_init(9* cfg.max_packet);
+
+// Assign static .bss FIFOs
+    new_con->fifo_app_msg = &new_con->fifo_app_msg_mem;
+    new_con->fifo_retr    = &new_con->fifo_retr_mem;
+    new_con->fifo_send    = &new_con->fifo_send_mem;
+
+    // Initialize
+    fifo_init_1(&new_con->fifo_app_msg_mem, cfg.send_max);
+    fifo_init_1(&new_con->fifo_retr_mem, MAX_QUEUE_SIZE);
+    fifo_init_1(&new_con->fifo_send_mem, 9 * cfg.max_packet);
+
+
 }
 
 // retransmit messages in queue
@@ -744,7 +756,7 @@ struct rasta_connection * handle_conreq(struct rasta_receive_handle *h, int conn
         }
         struct rasta_connection new_con;
 
-        sr_init_connection(&h,&new_con,receivedPacket.sender_id,h->info,h->config, RASTA_ROLE_SERVER);
+        sr_init_connection(&new_con,receivedPacket.sender_id,h->info,h->config, RASTA_ROLE_SERVER);
 
 
         // initialize seq num
@@ -1752,7 +1764,7 @@ char data_send_event(void * carry_data)
             }
         }
 #ifdef BAREMETAL
-        ClockP_usleep(50);
+        //ClockP_usleep(50);
 #else
         usleep(50);
 #endif
@@ -1786,6 +1798,8 @@ void sr_init_handle(struct rasta_handle* handle, const char* config_file_path,st
 
 #ifdef BAREMETAL
     handle->mux = redundancy_mux_init_baremetal(handle->redlogger,handle->config.values,handle,ctx->mux_channels,ctx->mux_udp_sockets,ctx->mux_listen_ports);
+//    ctx->mux_mem = redundancy_mux_init_baremetal(handle->redlogger,handle->config.values,handle,ctx->mux_channels,ctx->mux_udp_sockets,ctx->mux_listen_ports);
+
 #else
     handle->mux = redundancy_mux_init_(handle->redlogger,handle->config.values);
 #endif
@@ -1794,8 +1808,9 @@ void sr_init_handle(struct rasta_handle* handle, const char* config_file_path,st
 
 void sr_connect(struct rasta_handle* h, unsigned long id, struct RastaIPData* channels,struct app_context *ctx)
 {
-    struct rasta_connection new_con;
-    struct rasta_error_counters error_counters;
+    static struct rasta_connection new_con;
+    static struct rasta_error_counters error_counters;
+
     for (unsigned int i = 0; i < h->connections.size; i++)
     {
         if (h->connections.data[i].remote_id == id) return; //It means that request has already been sent to this ID.
@@ -1809,9 +1824,10 @@ void sr_connect(struct rasta_handle* h, unsigned long id, struct RastaIPData* ch
     //struct logger_t logger1 = ctx->r_dle.logger;
 
 //    sr_init_connection(&h,&new_con,id,h->config.values.general,h->config.values.sending,&h->logger, RASTA_ROLE_CLIENT);//First corruption here MAN_21JUNE
-   // sr_init_connection(&h,&new_con,id,general1,sending1, RASTA_ROLE_CLIENT);//First corruption here MAN_21JUNE
+      sr_init_connection(&new_con,id,general1,sending1, RASTA_ROLE_CLIENT);//First corruption here MAN_21JUNE
 
 
+/*
 //    ----------
     //    sr_reset_connection(&new_con,id,general1);
       new_con.remote_id = (uint32_t )id;
@@ -1840,14 +1856,14 @@ void sr_connect(struct rasta_handle* h, unsigned long id, struct RastaIPData* ch
         new_con.fifo_send    = &new_con.fifo_send_mem;
 
         // Initialize
-        fifo_init_1(new_con.fifo_app_msg, sending1.send_max);
-        fifo_init_1(new_con.fifo_retr, MAX_QUEUE_SIZE);
-        fifo_init_1(new_con.fifo_send, 9 * sending1.max_packet);
+        fifo_init_1(&new_con.fifo_app_msg_mem, sending1.send_max);
+        fifo_init_1(&new_con.fifo_retr_mem, MAX_QUEUE_SIZE);
+        fifo_init_1(&new_con.fifo_send_mem, 9 * sending1.max_packet);
 
-        /* initalize diagnostic interval and store it in connection
-        sr_diagnostic_interval_init(&new_con, h->config.values.sending);*/
+         initalize diagnostic interval and store it in connection
+        sr_diagnostic_interval_init(&new_con, h->config.values.sending);
 
-        // create receive queue
+//        // create receive queue
 //        new_con.fifo_app_msg = fifo_init(sending1.send_max);
 //
 //        // init retransmission fifo
@@ -1857,6 +1873,7 @@ void sr_connect(struct rasta_handle* h, unsigned long id, struct RastaIPData* ch
 //        new_con.fifo_send = fifo_init(9* sending1.max_packet);
 
  //   ---------
+*/
 
 
 
@@ -2022,17 +2039,16 @@ void sr_cleanup(struct rasta_handle *h) {
     h->send_running = 0;
 
     logger_log(&h->logger, LOG_LEVEL_DEBUG, "RaSTA Cleanup", "Threads joined");
-
     for (unsigned int i = 0; i < h->connections.size; i++) {
-        struct rasta_connection connection = h->connections.data[i];
-        // No need to free static memory
-        // rfree(connection.diagnostic_intervals);
+            struct rasta_connection connection = h->connections.data[i];
+            // No need to free static memory
+            // rfree(connection.diagnostic_intervals);
 
-        //free FIFOs - use cleanup for static FIFOs
-        fifo_cleanup(connection.fifo_app_msg);
-        fifo_cleanup(connection.fifo_send);
-        fifo_cleanup(connection.fifo_retr);
-    }
+            //free FIFOs - use cleanup for static FIFOs
+            fifo_cleanup(connection.fifo_app_msg);
+            fifo_cleanup(connection.fifo_send);
+            fifo_cleanup(connection.fifo_retr);
+        }
 
     // set notification pointers to NULL
     h->notifications.on_receive = NULL;
@@ -2098,14 +2114,15 @@ void sr_begin(struct rasta_handle* h, fd_event* external_fd_events, int len,time
     add_timed_event(&h->events, io_events);
     add_timed_event(&h->events, io_events + 1);
 
-    struct timeout_event_data timeout_data;
-    timed_event channel_timeout_event;
+    static struct timeout_event_data timeout_data;
+    static timed_event channel_timeout_event;
     init_timeout_events(&channel_timeout_event, &timeout_data, &h->mux);
     add_timed_event(&h->events, &channel_timeout_event);  //0.1 millisecond
 
     int channel_event_data_len = h->mux.port_count;
-    fd_event channel_events[channel_event_data_len];
-    //struct receive_event_data channel_event_data[channel_event_data_len];
+//    static fd_event channel_events[channel_event_data_len];
+    static fd_event channel_events[2];
+    //static struct receive_event_data channel_event_data[2];
     struct receive_event_data* channel_event_data =rmalloc(2* sizeof(struct receive_event_data));
     for (int i = 0; i < channel_event_data_len; i++) {
         channel_events[i].meta_information.enabled = 1;
@@ -2122,7 +2139,8 @@ void sr_begin(struct rasta_handle* h, fd_event* external_fd_events, int len,time
         channel_event_data[i].len=0;
         channel_event_data[i].sender_port=0;
         channel_event_data[i].ready_flag=0;
-        channel_event_data[i].sender_ip = rmalloc(sizeof(char)*15);
+//        channel_event_data[i].sender_ip = rmalloc(sizeof(char)*15);
+        channel_event_data[i].sender_ip = rmalloc_debug_pool(15, 101);
 
         memset(channel_event_data[i].sender_ip,0,sizeof(channel_event_data[i].sender_ip));
         memset(channel_event_data[i].receive_buffer,0,sizeof(channel_event_data[i].receive_buffer));

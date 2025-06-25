@@ -22,21 +22,98 @@ typedef struct {
 } MyArgs;
 
 MyArgs my_args = {0};
-//static struct udp_pcb *udp_pcb_rasta_1,*udp_pcb_rasta_2;
 
 volatile unsigned int network_sending = 0;
-//struct rasta_handle r_dle;
-
-
-//struct app_context {
-//    struct rasta_handle r_dle;
-//};
-static struct app_context app = {0};
-//static uint64_t current_time_ns_clock = 0;
+static struct app_context app={0};
 static timed_event connect_req;
-    static struct connect_event_data data;
+static struct connect_event_data data;
 #endif
 
+struct udp_pcb *udp_socket_fds;
+
+//------------------------------------------------------------
+void App_udpRecvCallback_simpleUDP(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
+    if (p != NULL) {
+        print_log("Ethernet_simpleUDP:Received UDP packet from client %s:%d\r\n", ipaddr_ntoa(addr), port);
+        //char *arg_passed = (char*)arg;
+        // Process and display the received data
+        char recv_data[30];
+        memset(recv_data, 0, sizeof(recv_data));
+        memcpy(recv_data, (const char *)p->payload, p->len);
+        print_log("Received Data:%s, local port = %d\r\n", recv_data,pcb->local_port);
+        pbuf_free(p);  // Free the buffer after processing
+    }
+}
+
+void udp_initilaize()
+{
+    udp_socket_fds = udp_new();
+    if (udp_socket_fds != NULL)
+    {
+//            udp_bind(udp_socket_fds, IP_ADDR_ANY, 10000);
+            udp_bind(udp_socket_fds, IP_ADDR_ANY, 7002);
+            udp_recv(udp_socket_fds, App_udpRecvCallback_simpleUDP, NULL);
+    }
+    else
+    {
+        print_log("\r\nFailed to create UDP PCB_manjeet\r\n");
+    }
+}
+
+void send_dummy_udp()
+{
+    char dummy_string[22]="RASTA is in progress\n";
+    struct pbuf *p;
+    struct pbuf *p2;
+
+    char * tar_ip_address = "192.168.25.83";
+    ip_addr_t *target_ip1 = (ip_addr_t*)malloc(sizeof(ip_addr_t));
+    memset(target_ip1,0,sizeof(ip_addr_t));
+    ipaddr_aton(tar_ip_address, target_ip1);
+
+    char * tar_ip_address2 = "192.168.25.34";
+    ip_addr_t *target_ip2 = (ip_addr_t*)malloc(sizeof(ip_addr_t));
+    memset(target_ip2,0,sizeof(ip_addr_t));
+    ipaddr_aton(tar_ip_address2, target_ip2);
+
+    p2 = pbuf_alloc(PBUF_TRANSPORT, 30, PBUF_RAM);
+    p = pbuf_alloc(PBUF_TRANSPORT, 30, PBUF_RAM);
+
+    if (p != NULL)
+    {
+            memcpy(p->payload, dummy_string, 22);  // Copy the data to the buffer
+            memcpy(p2->payload, dummy_string, 22);
+
+            udp_sendto(udp_socket_fds,p, target_ip1, 7002);
+            udp_sendto(udp_socket_fds,p2, target_ip2, 7002);
+            pbuf_free(p);
+            pbuf_free(p2);
+            print_log("\r\nSent data over 7002 port to server 192.168.25.83/34\n");
+    }
+    else
+    {
+        print_log("Failed to allocate pbuf for UDP data\n");
+    }
+    rfree(target_ip1);
+}
+
+
+void send_dummy_udp_old()
+{
+    u8 buff[22] = "RASTA is in progress\n";
+    ip_addr_t ip_other_s_kavach;
+    IP4_ADDR(&ip_other_s_kavach, 192, 168, 25, 83);
+    int port =50001;
+    u16 lnth = 22;
+
+
+    err_t udp_err = UDP_Send((const char*)buff, &ip_other_s_kavach, port, lnth);
+    if(udp_err == -1)
+        print_log_1("\nUnable to send data to other stn");
+    else
+        print_log_1("\nDATA sent to other STN");
+
+}
 //############################################ MAIN FUNC ############################################
 int appMain(void *args)
 {
@@ -60,10 +137,7 @@ int appMain(void *args)
     cc_init();
     //lib_MCAN_init(CAN_MODE_FIFO); // revert back
 
-//#ifdef RASTA_ENABLED
-//    my_args.arg1 = 1;
-//    my_args.arg2 = 2;
-//#endif
+
 
     print_log("\n############## CC_SCU init completed ##############\n");
     print_log("\n###### 20250520 ######\n");
@@ -129,6 +203,10 @@ int appMain(void *args)
 #ifdef RASTA_ENABLED
     //static struct rasta_handle r_dle;
     //rasta_init(&r_dle);
+
+    //DUMMY UDP SEND
+//    udp_initilaize();
+//     send_dummy_udp();
     rasta_init();
 
 
@@ -322,62 +400,12 @@ int appMain(void *args)
 //        }
 
 #ifdef RASTA_ENABLED
-//        start_event_loop(getRastaHandlePacket());
-//        start_event_loop(&app.r_dle.events,&app.r_dle);
-//          start_event_loop(&app.r_dle);
-        {
-//        //void process_timed_events(struct rasta_handle* e)
-            {
-                // Safety check: ensure RASTA is initialized
-                if (app.r_dle.receive_handle == NULL || app.r_dle.send_handle == NULL) {
-                    // RASTA not yet initialized, skip event processing
-                    continue;
-                }
-                
-                EventList* list = &app.r_dle.events;
-                
-                // Safety check: ensure the event list is properly initialized
-                if (list == NULL) {
-                    print_log("ERROR: Event list is NULL\n");
-                    continue;
-                }
-                
-                EventNode* node = list->head;
-                current_time_ns_clock = ClockP_getTimeUsec()/1000;
-
-                while (node != NULL)
-                {
-                    // Safety check: validate node structure
-                    if (node->meta_information.callback == NULL) {
-                        print_log("ERROR: Invalid event node with NULL callback\n");
-                        node = node->next;
-                        continue;
-                    }
-                    
-                    if (node->type == TIMED_EVENT && node->meta_information.enabled)
-                    {
-                      //  if (current_time_ns >=  node->event_info.timed_event.next_run_time_ns)
-                        if (current_time_ns_clock >=  node->event_info.timed_event.next_run_time_ns)
-                        {
-                            node->meta_information.callback(node->meta_information.carry_data);
-                            node->event_info.timed_event.next_run_time_ns +=  node->event_info.timed_event.interval_ns;
-                        }
-                    }
-                    node = node->next;
-                }
-            }
-
-//
-//               const uint32_t recvdEventsMask = ReceiveEvents(&hEvent); // Corruption or something here also MAN_21JUNE
-//               if (recvdEventsMask != AppEventId_NONE)
-//               {
-//                   HandleEvent(recvdEventsMask);
-//               }
-        }
+          start_event_loop(&app.r_dle);
 
 
 #endif
 //
+          ethernet_checks();
     }
     //     App_shutdownNetworkStack();
     //    EventP_destruct(&hEvent);
@@ -444,7 +472,7 @@ void cc_init(){
     system_status.gps1_cno_max = 0;
     system_status.gps2_cno_max = 0;
 
-    App_initUDP1();
+   // App_initUDP1(); //23 JUNE COMMENTED
 
 }
 
@@ -623,12 +651,12 @@ int8_t print_log(const char *formatString, ...){
         memcpy(send_buffer + sizeof(_log_header), &_kav_id, sizeof(uint16_t));
         memcpy(send_buffer + sizeof(_log_header) + sizeof(uint16_t), buffer, _len);
 
-        err_t udp_err = UDP_Send((const char *)send_buffer, &ip_log, 50002, _log_header.msg_len);
-
-        if (udp_err < 0) {
-            //            printf("\nUDP log failed");
-            return udp_err;
-        }
+//        err_t udp_err = UDP_Send((const char *)send_buffer, &ip_log, 50002, _log_header.msg_len);
+//
+//        if (udp_err < 0) {
+//            //            printf("\nUDP log failed");
+//            return udp_err;
+//        }
     }
     return 1;
 }
@@ -672,10 +700,7 @@ static void App_printCpuLoad()
 //RASTA Loop ---- START
 
 #ifdef RASTA_ENABLED
-// struct for the ethernet netif
-struct netif *g_pNetif[ENET_SYSCFG_NETIF_COUNT];
-EventP_Object hEvent;
-ip4_addr_t ipaddr, netmask, gw;
+
 
 
 //Timer to keep track of monotonic time
@@ -932,14 +957,6 @@ char connect_on_stdin(void * carry_data)
     struct connect_event_data *data = carry_data;
     //ClockP_sleep(2);
 
-//    data->h->mux.config.general.initial_seq_num = data->h->config.values.general.initial_seq_num;
-//    data->h->mux.config.general.rasta_id = data->h->config.values.general.rasta_id;
-//    data->h->mux.config.general.rasta_network= data->h->config.values.general.rasta_network;
-//
-//    data->h->mux.config.redundancy.n_deferqueue_size = data->h->config.values.redundancy.n_deferqueue_size;
-//    data->h->mux.config.redundancy.t_seq = data->h->config.values.redundancy.t_seq;
-
-//    sr_connect(data->h, ID_R, data->ip_data_arr);
     sr_connect(&app.r_dle, ID_R, data->ip_data_arr,&app);
     print_log("%d ->   Connection request sent to 0x%lX\r\n", monotonic_time,(unsigned long)ID_R);
     disable_event(data->connect_event);
@@ -954,14 +971,18 @@ int rasta_init(){
     strcpy(toServer[0].ip, "192.168.25.83");
     strcpy(toServer[1].ip, "192.168.25.83");
 
+//    strcpy(toServer[0].ip, "192.168.25.35");
+//    strcpy(toServer[1].ip, "192.168.25.35");
+
     toServer[0].port = 15000;
     toServer[1].port = 15001;
 
     // acting as server
 
+
 #ifdef STATION_TELAPUR
     char *argv[]={"rasta","r"};
-#else
+#elif defined(STATION_LINGAMPALLY)
     char *argv[]={"rasta","s1"};
 #endif
 
@@ -1001,7 +1022,7 @@ int rasta_init(){
         app.r_dle.notifications.on_heartbeat_timeout = onTimeout;
         //enable_fd_event(&fd_events[0]);
         sr_begin(&app.r_dle, NULL, 0,NULL,0, NULL);
-
+        return 0;
     }
     else if (strcmp(argv[1], "s1") == 0) {
         print_log("->   S1 (ID = 0x%lX) \r\n", (unsigned long)ID_S1);
@@ -1023,4 +1044,6 @@ int rasta_init(){
 }
 
 #endif
+
+
 ////RASTA Loop ---- END

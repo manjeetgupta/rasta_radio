@@ -14,8 +14,6 @@ extern "C" {  // only need to export C interface if
 #include "fifo.h"
 
 
-//extern rasta_transport_channel connected_channels_mem[2];
-
 /**
  * maximum size of messages in the defer queue in bytes
  */
@@ -74,6 +72,7 @@ typedef struct {
      * IPv4 address in format a.b.c.d
      */
     char * ip_address;
+   // char  ip_address[16];
 
     /**
      * port number
@@ -110,6 +109,11 @@ typedef struct
     unsigned int transport_channel_count; 			//* the total amount of transport channels
 
     rasta_hashing_context_t hashing_context; 		//* Hashing context for en/decoding SR layer PDUs
+
+    struct defer_queue defer_q_mem;
+    struct defer_queue diagnostics_packet_buffer_mem;
+    fifo_t  fifo_recv_mem;
+    rasta_transport_channel  connected_channels_mem[2];//size is set to 2
 
 } rasta_redundancy_channel;
 

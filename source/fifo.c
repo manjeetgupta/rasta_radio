@@ -25,6 +25,14 @@ void fifo_init_1(fifo_t *fifo, unsigned int max_size) {
     fifo->tail = NULL;
 }
 
+void fifo_cleanup(fifo_t * fifo){
+    // Clear FIFO contents without freeing the structure itself
+    // This is for static FIFOs that don't need to be freed
+    while (fifo->size != 0) {
+        fifo_pop(fifo);
+    }
+    // Don't call rfree(fifo) since it's static memory
+}
 
 void * fifo_first_element(fifo_t * fifo)
 {
@@ -106,15 +114,6 @@ void fifo_destroy(fifo_t * fifo){
     }
 
     rfree(fifo);
-}
-
-void fifo_cleanup(fifo_t * fifo){
-    // Clear FIFO contents without freeing the structure itself
-    // This is for static FIFOs that don't need to be freed
-    while (fifo->size != 0) {
-        fifo_pop(fifo);
-    }
-    // Don't call rfree(fifo) since it's static memory
 }
 
 void** fifo_print(fifo_t * fifo,unsigned int *out_size)

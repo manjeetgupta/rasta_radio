@@ -25,8 +25,8 @@ extern volatile unsigned char radio_check[30];
 #define time_msec (ClockP_getTicks())
 #define time_usec (ClockP_getTimeUsec())
 
-//#define STATION_TELAPUR
-#define STATION_LINGAMPALLY
+#define STATION_TELAPUR
+//#define STATION_LINGAMPALLY
 #define MODE_RADIO_LAN
 //#define GPS_ENABLED // revert back
 //#define KMS_KEY_ENABLED // revert back

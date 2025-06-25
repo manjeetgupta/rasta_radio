@@ -774,14 +774,7 @@ void config_setstd_baremetal(struct RastaConfig * cfg) {
     // Sending part
 
     cfg->values.sending.t_max    = 3000;                            //RASTA_T_MAX
-#ifdef skavach_3
-    cfg->values.sending.t_h      = 600;
-#elif defined(skavach_2)
-    cfg->values.sending.t_h      = 300;
-#elif defined(skavach_1)
-    cfg->values.sending.t_h      = 300;
-#endif
-    //cfg->values.sending.t_h      = 300;                             //RASTA_T_H
+    cfg->values.sending.t_h      = 300;                             //RASTA_T_H
     cfg->values.sending.md4_type = RASTA_CHECKSUM_NONE;             //RASTA_SR_CHECKSUM_LEN
     cfg->values.sending.sr_hash_key = 0x12345678;                   //RASTA_SR_CHECKSUM_KEY
     cfg->values.sending.sr_hash_algorithm = RASTA_ALGO_MD4;         //RASTA_SR_CHECKSUM_ALGO

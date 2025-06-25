@@ -3,22 +3,6 @@
 #include "rastadeferqueue.h"
 #include "print_util.h"
 
-// Static memory pools to replace dynamic allocations
-#define MAX_DEFER_QUEUES 2
-#define MAX_DEFER_QUEUE_ELEMENTS 10
-#define MAX_PACKET_DATA_SIZE 1024
-#define MAX_PACKET_CHECKSUM_SIZE 64
-
-static struct defer_queue static_defer_queues[MAX_DEFER_QUEUES];
-static int defer_queue_pool_index = 0;
-
-static struct rasta_redundancy_packet_wrapper static_queue_elements[MAX_DEFER_QUEUES][MAX_DEFER_QUEUE_ELEMENTS];
-
-// Separate pools per queue for better memory management
-static unsigned char static_packet_data_pool[MAX_DEFER_QUEUES][MAX_DEFER_QUEUE_ELEMENTS][MAX_PACKET_DATA_SIZE];
-
-static unsigned char static_packet_checksum_pool[MAX_DEFER_QUEUES][MAX_DEFER_QUEUE_ELEMENTS][MAX_PACKET_CHECKSUM_SIZE];
-
 /**
  * finds the index of a given element inside the given queue.
  * The sequence_number is used as the unique identifier
@@ -64,29 +48,12 @@ struct RastaRedundancyPacket deep_copy_packet(const struct RastaRedundancyPacket
 	dest.reserve=src->reserve;
 	dest.sequence_number=src->sequence_number;
 
-	// Use static memory pool - cycle through all queues
-	static int global_data_index = 0;
-	static int global_checksum_index = 0;
-	
-	int queue_id = global_data_index / MAX_DEFER_QUEUE_ELEMENTS;
-	int element_id = global_data_index % MAX_DEFER_QUEUE_ELEMENTS;
-	
-	dest.data.data.bytes = static_packet_data_pool[queue_id][element_id];
-	global_data_index = (global_data_index + 1) % (MAX_DEFER_QUEUES * MAX_DEFER_QUEUE_ELEMENTS);
+	dest.data.data.bytes = (unsigned char*)malloc(src->data.data.length);
 	memcpy(dest.data.data.bytes,src->data.data.bytes,src->data.data.length);
 
-	queue_id = global_checksum_index / MAX_DEFER_QUEUE_ELEMENTS;
-	element_id = global_checksum_index % MAX_DEFER_QUEUE_ELEMENTS;
-	
-	dest.data.checksum.bytes = static_packet_checksum_pool[queue_id][element_id];
-	global_checksum_index = (global_checksum_index + 1) % (MAX_DEFER_QUEUES * MAX_DEFER_QUEUE_ELEMENTS);
+	dest.data.checksum.bytes = (unsigned char*)malloc(src->data.checksum.length);
 	memcpy(dest.data.checksum.bytes,src->data.checksum.bytes,src->data.checksum.length);
 
-	// ORIGINAL DYNAMIC ALLOCATION CODE (COMMENTED OUT):
-	// dest.data.data.bytes = rmalloc(src->data.data.length);
-	// memcpy(dest.data.data.bytes,src->data.data.bytes,src->data.data.length);
-	// dest.data.checksum.bytes = rmalloc(src->data.checksum.length);
-	// memcpy(dest.data.checksum.bytes,src->data.checksum.bytes,src->data.checksum.length);
 
 	dest.data.checksum_correct = src->data.checksum_correct;
 	dest.data.confirmed_sequence_number =src->data.confirmed_sequence_number;
@@ -131,19 +98,14 @@ void sort(struct defer_queue * queue){
 
 struct defer_queue* deferqueue_init(unsigned int n_max){
 
-	// Use static memory pool instead of malloc
-	struct defer_queue *queue = &static_defer_queues[defer_queue_pool_index];
-	defer_queue_pool_index = (defer_queue_pool_index + 1) % MAX_DEFER_QUEUES;
+	struct defer_queue *queue = malloc(sizeof(struct defer_queue));
+
 
     PRINT_LINE("SIZE = %d\r\n",n_max * sizeof(struct rasta_redundancy_packet_wrapper)); //struct rasta_redundancy_packet_wrapper = 1128 bytes
     PRINT_LINE("SIZE of rasta_redundancy_packet_wrapper = %d\r\n",sizeof(struct rasta_redundancy_packet_wrapper));
 
-    // Use static memory pool instead of rmalloc
-    queue->elements = static_queue_elements[defer_queue_pool_index - 1]; // Use the same index as the queue
-
-    // ORIGINAL DYNAMIC ALLOCATION CODE (COMMENTED OUT):
-    // struct defer_queue *queue = rmalloc(sizeof(struct defer_queue));
-    // queue->elements = rmalloc(n_max * sizeof(struct rasta_redundancy_packet_wrapper));
+    // allocate the array
+    queue->elements = rmalloc(n_max * sizeof(struct rasta_redundancy_packet_wrapper));
 
     // set count to 0
     queue->count = 0;
@@ -153,6 +115,20 @@ struct defer_queue* deferqueue_init(unsigned int n_max){
 
     return queue;
 }
+
+void deferqueue_init_1(struct defer_queue *queue, unsigned int n_max){
+
+    // allocate the array
+    queue->elements = rmalloc(n_max * sizeof(struct rasta_redundancy_packet_wrapper));
+
+    // set count to 0
+    queue->count = 0;
+
+    // set max count
+    queue->max_count = n_max;
+
+}
+
 
 
 void print_q(struct defer_queue *queue,int c,int k)
@@ -218,19 +194,14 @@ void deferqueue_remove(struct defer_queue * queue, unsigned long seq_nr){
 
     PRINT_LINE("Inside deferqueue_remove : Removing sqq_nr = %u at index %d,Before deletion total q_count = %d\r\n",seq_nr,index,queue->count);
 
-    // No need to free static memory
-    // free(queue->elements[index].packet.data.data.bytes);
+    // free memory of removed packet
+    free(queue->elements[index].packet.data.data.bytes);
     queue->elements[index].packet.data.data.length=0;
     queue->elements[index].packet.data.data.bytes=NULL;
 
-    // No need to free static memory
-    // free(queue->elements[index].packet.data.checksum.bytes);
+    free(queue->elements[index].packet.data.checksum.bytes);
     queue->elements[index].packet.data.checksum.length=0;
     queue->elements[index].packet.data.checksum.bytes=NULL;
-
-    // ORIGINAL DYNAMIC DEALLOCATION CODE (COMMENTED OUT):
-    // free(queue->elements[index].packet.data.data.bytes);
-    // free(queue->elements[index].packet.data.checksum.bytes);
 
     //Shift elements to close the gap
     for (int i=index;i< queue->count-1;i++)
@@ -256,11 +227,7 @@ int deferqueue_contains(struct defer_queue * queue, unsigned long seq_nr){
 }
 
 void deferqueue_destroy(struct defer_queue * queue){
-    // No need to free static memory
-    // rfree(queue->elements);
-
-    // ORIGINAL DYNAMIC DEALLOCATION CODE (COMMENTED OUT):
-    // rfree(queue->elements);
+    rfree(queue->elements);
 
     queue->count = 0;
     queue->max_count= 0;

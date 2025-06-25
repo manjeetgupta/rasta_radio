@@ -41,15 +41,15 @@ static int log_count=-1;
 
 void* pool_alloc(unsigned int size,int loc)
 {
-    if(count==-1)
-    {
-        print_log("Initially allocated memeory addresses\r\n");
-        for (int i = 0 ; i < MAX_BLOCKS; ++i)
-        {
-            print_log("%p, ",&memory_pool[i]);
-        }
-        count=0;
-    }
+//    if(count==-1)
+//    {
+//        print_log("Initially allocated memeory addresses\r\n");
+//        for (int i = 0 ; i < MAX_BLOCKS; ++i)
+//        {
+//            print_log("%p, ",&memory_pool[i]);
+//        }
+//        count=0;
+//    }
 
     for (int i = 0; i < MAX_BLOCKS; ++i)
     {
@@ -153,7 +153,7 @@ void * rmalloc(unsigned int size)
         void *ptr = malloc(size);
         if(ptr == NULL)
         {
-        	PRINT_LINE("malloc(0) returned NULL\r\n");
+        	//PRINT_LINE("malloc(0) returned NULL\r\n");
         }
         else
         {

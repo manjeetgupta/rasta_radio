@@ -11,6 +11,8 @@
 #include "rastautil.h"
 #include "print_util.h"
 
+//static rasta_redundancy_channel static_connected_channels[5]; //ADDED 23 JUNE 2025
+
 #ifndef BAREMETAL
 	#include "udp.h"
 	#include <syscall.h>
@@ -18,6 +20,7 @@
 #endif
 
 extern volatile unsigned int network_sending;
+extern struct udp_pcb *udp_socket_fds;
 /* --- Notifications --- */
 
 /**
@@ -232,8 +235,9 @@ void receive_packet(redundancy_mux * mux, int channel_id,unsigned char buffer[50
                 //MAN_DEBUG_06JAN------------
                 rasta_transport_channel connected_channel;
   //              connected_channel.ip_address = rmalloc(sizeof(char) * 15);   ///MAY_19
-                connected_channel.ip_address = (unsigned char*)rmalloc_debug_pool((size_t)sizeof(char) * 15,25);
+                connected_channel.ip_address = (unsigned char*)rmalloc_debug_pool((size_t)sizeof(char) * 15,25);  //25JUNE
                 memcpy(connected_channel.ip_address, ip, 15);
+                connected_channel.ip_address[15] = '\0';
                 connected_channel.port = sender_port;
                 //---------------------------
 
@@ -254,6 +258,8 @@ void receive_packet(redundancy_mux * mux, int channel_id,unsigned char buffer[50
                 {
                     // channel wasn't saved yet -> add to list
                     mux->connected_channels[i].connected_channels[channel.connected_channel_count].ip_address = connected_channel.ip_address;
+//                    strncpy(mux->connected_channels[i].connected_channels[channel.connected_channel_count].ip_address,connected_channel.ip_address,sizeof(connected_channel.ip_address));
+//                    mux->connected_channels[i].connected_channels[channel.connected_channel_count].ip_address[15]='\0';
                     mux->connected_channels[i].connected_channels[channel.connected_channel_count].port = connected_channel.port;
                     mux->connected_channels[i].connected_channel_count++;
 
@@ -286,8 +292,9 @@ void receive_packet(redundancy_mux * mux, int channel_id,unsigned char buffer[50
     //MAN_DEBUG_06JAN--------------
     rasta_transport_channel connected_channel;
  //   connected_channel.ip_address = rmalloc(sizeof(char) * 15);  MAY_19
-    connected_channel.ip_address = (unsigned char*)rmalloc_debug_pool((size_t)sizeof(char) * 15,26);
+    connected_channel.ip_address = (unsigned char*)rmalloc_debug_pool((size_t)sizeof(char) * 15,26); //25JUNE
     memcpy(connected_channel.ip_address, ip, 15);
+    connected_channel.ip_address[15] = '\0';
     connected_channel.port = sender_port;
     //-----------------------------
 
@@ -296,25 +303,27 @@ void receive_packet(redundancy_mux * mux, int channel_id,unsigned char buffer[50
     rasta_redundancy_channel new_channel = rasta_red_init(mux->logger, mux->config, mux->port_count, receivedPacket.data.sender_id);
     new_channel.associated_id = receivedPacket.data.sender_id;
     // add transport channel to redundancy channel
-    new_channel.connected_channels[0].ip_address = connected_channel.ip_address;
+    new_channel.connected_channels[0].ip_address = connected_channel.ip_address; //25JUNE
+//    strncpy(new_channel.connected_channels[0].ip_address, connected_channel.ip_address, sizeof(connected_channel.ip_address));
+//    new_channel.connected_channels[0].ip_address[15]='\0';
     new_channel.connected_channels[0].port = connected_channel.port;
     new_channel.connected_channel_count++;
 
     new_channel.is_open = 1;
 
-    //reallocate memory for new client
-    //mux->connected_channels = rrealloc(mux->connected_channels, (mux->channel_count + 1) * sizeof(rasta_redundancy_channel));
-    void *temp = rrealloc(mux->connected_channels, (mux->channel_count + 1) * sizeof(rasta_redundancy_channel)); //MAN_S2
-    //MAN_DEBUG_25Jan2025
-    if(temp==NULL)
-        {
-        	//rfree(buffer); //MAY_19
-        	//rfree(connected_channel.ip_address);
-        	rfree_pool(connected_channel.ip_address);
-        	return;
-        }
-
-	mux->connected_channels = temp;
+//    reallocate memory for new client
+//    mux->connected_channels = rrealloc(mux->connected_channels, (mux->channel_count + 1) * sizeof(rasta_redundancy_channel));
+//    void *temp = rrealloc(mux->connected_channels, (mux->channel_count + 1) * sizeof(rasta_redundancy_channel)); //MAN_S2
+//    //MAN_DEBUG_25Jan2025
+//    if(temp==NULL)
+//        {
+//        	//rfree(buffer); //MAY_19
+//        	//rfree(connected_channel.ip_address);
+//        	rfree_pool(connected_channel.ip_address);
+//        	return;
+//        }
+//
+//	mux->connected_channels = temp;
     mux->connected_channels[mux->channel_count] = new_channel;
     mux->channel_count++;
 
@@ -327,7 +336,7 @@ void receive_packet(redundancy_mux * mux, int channel_id,unsigned char buffer[50
     // free receive buffer
    // rfree(buffer); //MAY_19
  //   rfree(connected_channel.ip_address);//MAN_DEBUG_04JAN
-    rfree_pool(connected_channel.ip_address);
+    //rfree_pool(connected_channel.ip_address);//MAN_25JUNE
     //FREE RASTA BYTE DATA,CHECKSUM? //ANI_MAY_19
     freeRastaByteArray_pool(&receivedPacket.data.data);
     freeRastaByteArray_pool(&receivedPacket.data.checksum);
@@ -656,8 +665,8 @@ redundancy_mux redundancy_mux_init_baremetal(struct logger_t logger, struct Rast
     mux.config                  = config;
     mux.is_open                 = 1;
 
-//    mux.udp_socket_fds          = rmalloc(mux.port_count * sizeof(int));
-    mux.udp_socket_fds          = (void **)udp_sockets;
+   mux.udp_socket_fds          = rmalloc(mux.port_count * sizeof(int));
+//    mux.udp_socket_fds          = udp_sockets;
 
 //    mux.connected_channels      = rmalloc(sizeof(rasta_redundancy_channel));
     mux.connected_channels      = mux_channels;
@@ -708,7 +717,7 @@ redundancy_mux redundancy_mux_init_baremetal(struct logger_t logger, struct Rast
             }
             else
             {
-            	PRINT_LINE("Failed to create UDP PCB\r\n");
+            	print_log("Failed to create UDP PCB_rasta_red_multiplexor\r\n");
             }
 
             //--------------
@@ -986,6 +995,7 @@ void redundancy_mux_set_config_id(redundancy_mux * mux, unsigned long id)
     }
 }
 
+
 void redundancy_mux_send(redundancy_mux * mux, struct RastaPacket data)
 {
     logger_log(&mux->logger, LOG_LEVEL_DEBUG, "RaSTA RedMux send", "sending a data packet to id 0x%lX", data.receiver_id);
@@ -1018,15 +1028,21 @@ void redundancy_mux_send(redundancy_mux * mux, struct RastaPacket data)
         channel = receiver->connected_channels[i];
         //printf("ip_address %s, Port %d\n",channel.ip_address,channel.port);
         // send using the channel specific udp socket
-
 #ifdef BAREMETAL
 
                 struct pbuf *p;
                 p = pbuf_alloc(PBUF_TRANSPORT, data_to_send.length, PBUF_RAM);
+                struct pbuf *p2;
+                p2 = pbuf_alloc(PBUF_TRANSPORT, data_to_send.length, PBUF_RAM);
+
                 if (p != NULL)
                 {
-                        memcpy(p->payload, data_to_send.bytes, data_to_send.length);  // Copy the data to the buffer
 
+
+                    char dummy_string[22]="RASTA is in progress\n";
+                      memcpy(p->payload, data_to_send.bytes, data_to_send.length);  // Copy the data to the buffer
+                      memcpy(p2->payload, data_to_send.bytes, data_to_send.length);
+                   //   memcpy(p->payload, dummy_string, 22);
                         //  ip_addr_t target_ip;
                         //  IP4_ADDR(&target_ip, 192, 168, 1, 34);
 
@@ -1035,15 +1051,59 @@ void redundancy_mux_send(redundancy_mux * mux, struct RastaPacket data)
                         memset(target_ip1,0,sizeof(ip_addr_t));
                         ipaddr_aton(channel.ip_address, target_ip1);
 
+ //                       char * tar_ip_address = "192.168.25.34";
+
+//                        ip_addr_t *target_ip1 = (ip_addr_t*)malloc(sizeof(ip_addr_t));
+//                      memset(target_ip1,0,sizeof(ip_addr_t));
+//                      ipaddr_aton(tar_ip_address, target_ip1);
+
 //                        network_sending = 1;
 //                        HwiP_disable(); //Disable all interrupts
+//                        struct udp_pcb * udp_socket_fds_manjeet = udp_new();
                         udp_sendto(mux->udp_socket_fds[i],p, target_ip1, channel.port);
-                        //udp_sendto(mux->udp_socket_fds[i],p, &target_ip, channel.port);
+
+                        ip_addr_t *target_ip2 = (ip_addr_t*)rmalloc_debug_pool(sizeof(ip_addr_t),27);
+                        char * tar_ip_address = "192.168.25.34";
+                        memset(target_ip2,0,sizeof(ip_addr_t));
+                        ipaddr_aton(tar_ip_address, target_ip2);
+//                        udp_sendto(mux->udp_socket_fds[i],p, target_ip1, channel.port);
+
+                        // udp_sendto(udp_socket_fds,p2, target_ip2, 7002);
+                        // udp_sendto(mux->udp_socket_fds[i],p2, target_ip2, 7002);
                         pbuf_free(p);
+                        pbuf_free(p2);
+
+
+//                        //-----------------------------------------
+//                   //                        char dummy_string[22]="RASTA is in progress\n";
+//                           struct pbuf *p;
+//
+//                          // char * tar_ip_address = "192.168.25.34";
+//
+//   //                        ip_addr_t *target_ip1 = (ip_addr_t*)malloc(sizeof(ip_addr_t));
+//                           memset(target_ip1,0,sizeof(ip_addr_t));
+//                           ipaddr_aton(tar_ip_address, target_ip1);
+//
+//
+//                           p = pbuf_alloc(PBUF_TRANSPORT, 30, PBUF_RAM);
+//                           if (p != NULL)
+//                           {
+//                                   memcpy(p->payload, dummy_string, 22);  // Copy the data to the buffer
+//                                   udp_sendto(udp_socket_fds,p, target_ip1, 7002);
+//                                   pbuf_free(p);
+//                                   print_log("\r\nSent data over 1 ports\n");
+//                           }
+//                           else
+//                           {
+//                               print_log("Failed to allocate pbuf for UDP data\n");
+//                           }
+//                           rfree(target_ip1);
+//                           //-----------------------------------------
+
 //                        HwiP_enable(); ////Enable all interrupts
-                        network_sending = 0;
                      //   rfree(target_ip1);//MAN_DEBUG_04JAN
                         pool_free(target_ip1);
+                        pool_free(target_ip2);
                         logger_log(&mux->logger, LOG_LEVEL_DEBUG, "RaSTA RedMux send","Data sent over UDP to %s:%d, [%02X %02X]\r\n", channel.ip_address, channel.port,data_to_send.bytes[11],data_to_send.bytes[10]);
                 }
                 else
@@ -1132,7 +1192,11 @@ void redundancy_mux_add_channel(redundancy_mux * mux, unsigned long id, struct R
     }
 
     //reallocate memory for new client & finally assign to redundancy_mux *mux
-    mux->connected_channels = rrealloc(mux->connected_channels, (mux->channel_count + 1) * sizeof(rasta_redundancy_channel)); //MAN_S2
+    //mux->connected_channels = rrealloc(mux->connected_channels, (mux->channel_count + 1) * sizeof(rasta_redundancy_channel)); //MAN_S2
+//    print_log("SIZE OF CONNECTED CHANNEL : %d \r\n",sizeof(rasta_redundancy_channel));
+
+    //mux->connected_channels = (rasta_redundancy_channel*)rmalloc_debug_pool((size_t)sizeof(char) * 15,100); //23 JUNE ADDED ANIKET
+    //mux->connected_channels = static_connected_channels ;
     mux->connected_channels[mux->channel_count] = channel;
     mux->channel_count++; //mux->channel_count = 1 here as we have added only one redundancy channel
 

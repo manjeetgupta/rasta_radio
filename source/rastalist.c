@@ -86,8 +86,8 @@ struct RastaList rastalist_create(unsigned int initial_size,struct rasta_connect
     result.size = 0;
     result.actual_size = initial_size;
 
-    //result.data = rmalloc(sizeof(struct rasta_connection) * initial_size);
-    result.data = storage;
+    result.data = rmalloc(sizeof(struct rasta_connection) * initial_size);
+    //result.data = storage;
 
     return result;
 }

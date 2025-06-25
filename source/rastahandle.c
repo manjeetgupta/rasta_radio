@@ -363,13 +363,13 @@ void rasta_handle_init(struct rasta_handle *h, const char* config_file_path, str
     h->send_running = 0;
     h->hb_running   = 0;
 
-//    h->receive_handle   = rmalloc(sizeof(struct rasta_receive_handle));
-//    h->heartbeat_handle = rmalloc(sizeof(struct rasta_heartbeat_handle));
-//    h->send_handle      = rmalloc(sizeof(struct rasta_sending_handle));
+    h->receive_handle   = rmalloc(sizeof(struct rasta_receive_handle));
+    h->heartbeat_handle = rmalloc(sizeof(struct rasta_heartbeat_handle));
+    h->send_handle      = rmalloc(sizeof(struct rasta_sending_handle));
 
-    h->receive_handle   = &ctx->rcv_mem;
-    h->heartbeat_handle = &ctx->hb_mem;
-    h->send_handle      = &ctx->snd_mem;
+//    h->receive_handle   = &ctx->rcv_mem;
+//    h->heartbeat_handle = &ctx->hb_mem;
+//    h->send_handle      = &ctx->snd_mem;
 
     //receive
     h->receive_handle->config 			= h->config.values.sending;
@@ -379,6 +379,7 @@ void rasta_handle_init(struct rasta_handle *h, const char* config_file_path, str
     h->receive_handle->running 			= &h->recv_running;
     h->receive_handle->logger 			= &h->logger;
     h->receive_handle->mux 				= &h->mux;
+//    h->receive_handle->mux              = &ctx->mux_mem;
     h->receive_handle->hashing_context 	= &h->hashing_context;
 
     //send

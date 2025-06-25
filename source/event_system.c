@@ -108,7 +108,6 @@ void process_timed_events(struct rasta_handle* e)
 {
     EventList* list = &e->events;
     EventNode* node = list->head;
-    //current_time_ns += 1000000;  // Increment simulated time by 1 ms
     current_time_ns_clock = ClockP_getTimeUsec()/1000;
 
     while (node != NULL)
@@ -207,16 +206,7 @@ void handle_timer_ev3(void)
 //int start_event_loop(EventList* list, struct rasta_handle* h)
 int start_event_loop(struct rasta_handle* h)
 {
-
-        sys_check_timeouts(); //MAN_DEBUG_04JAN
-
         process_timed_events(h);
-
-//        const uint32_t recvdEventsMask = ReceiveEvents(&hEvent);
-//        if (recvdEventsMask != AppEventId_NONE)
-//        {
-//            HandleEvent(recvdEventsMask);
-//        }
 }
 
 

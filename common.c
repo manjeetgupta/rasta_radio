@@ -122,17 +122,17 @@ int8_t print_log_1(const char *formatString, ...){
 
     send_data_to_uart0((const unsigned char *)buffer, _len);
 
-    if(is_active_lan_0 || is_active_lan_1){
-        memcpy(send_buffer, &_log_header, sizeof(_log_header));
-        memcpy(send_buffer + sizeof(_log_header), &_kav_id, sizeof(uint16_t));
-        memcpy(send_buffer + sizeof(_log_header) + sizeof(uint16_t), buffer, _len);
-
-        udp_err = UDP_Send_1((const char *)send_buffer, &ip_log, 50002, _log_header.msg_len);
-        if (udp_err < 0) {
-            //            printf("\nUDP log failed\n");
-            return udp_err;
-        }
-    }
+//    if(is_active_lan_0 || is_active_lan_1){
+//        memcpy(send_buffer, &_log_header, sizeof(_log_header));
+//        memcpy(send_buffer + sizeof(_log_header), &_kav_id, sizeof(uint16_t));
+//        memcpy(send_buffer + sizeof(_log_header) + sizeof(uint16_t), buffer, _len);
+//
+//        udp_err = UDP_Send_1((const char *)send_buffer, &ip_log, 50002, _log_header.msg_len);
+//        if (udp_err < 0) {
+//            //            printf("\nUDP log failed\n");
+//            return udp_err;
+//        }
+//    }
 
     return udp_err;
 }
@@ -147,7 +147,7 @@ void App_initUDP1() {
         //// Set up receive callback to listen for acknowledgment
         //        udp_recv(udp_pcb1, App_udpRecvCallback, NULL);
     } else {
-        DebugP_log("Failed to create UDP PCB\n");
+        DebugP_log("Failed to create UDP PCB_common\n");
     }
 }
 

@@ -27,9 +27,13 @@ rasta_redundancy_channel rasta_red_init(struct logger_t logger, struct RastaConf
     channel.seq_tx 					 = 0;
 
     // init defer queue
-    channel.defer_q 	 			 = deferqueue_init(config.redundancy.n_deferqueue_size);
-
-    channel.fifo_recv 	  			 = fifo_init(config.redundancy.n_deferqueue_size);
+    //channel.defer_q 	 			 = deferqueue_init(config.redundancy.n_deferqueue_size);
+    channel.defer_q= &channel.defer_q_mem;
+    deferqueue_init_1(&channel.defer_q_mem,config.redundancy.n_deferqueue_size);
+//
+//    channel.fifo_recv 	  			 = fifo_init(config.redundancy.n_deferqueue_size);
+    channel.fifo_recv=&channel.fifo_recv_mem;
+    fifo_init_1(&channel.fifo_recv_mem,config.redundancy.n_deferqueue_size);
 
     // init diagnostics buffer
 #ifdef BAREMETAL
@@ -61,7 +65,8 @@ rasta_redundancy_channel rasta_red_init(struct logger_t logger, struct RastaConf
     // init transport channel buffer;
     logger_log(&channel.logger, LOG_LEVEL_DEBUG, "RaSTA Red init", "space for %d connected channels", transport_channel_count);
     channel.connected_channels = rmalloc(transport_channel_count * sizeof(rasta_transport_channel)); //Will be filled later by server IP/port
-//    channel.connected_channels = app.transport_channels; //allocated using gloabal context
+
+//    channel.connected_channels = &channel.connected_channels_mem; //allocated using gloabal context
     channel.connected_channel_count = 0;
     channel.transport_channel_count = transport_channel_count;
 
@@ -282,7 +287,7 @@ void rasta_red_add_transport_channel(rasta_redundancy_channel * channel, char * 
     rasta_transport_channel transport_channel;
 
     transport_channel.port = port;
-    transport_channel.ip_address = rmalloc(sizeof(char) * 16);
+   // transport_channel.ip_address = rmalloc(sizeof(char) * 16); //25JUNE
     rmemcpy(transport_channel.ip_address, ip, 16);
 
     channel->connected_channels[channel->connected_channel_count] = transport_channel;
